@@ -9,7 +9,8 @@ import {
     getDatabase,
     ref,
     get,
-    set
+    set,
+    onValue
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
 
 // ---------------------------------------------------------------
@@ -60,6 +61,12 @@ const slotsEl = $("slots");
 const ofertasForm = $("ofertasForm");
 const saveBtn = $("saveBtn");
 const saveMsg = $("saveMsg");
+const statusIcone = $("statusIcone");
+const statusLabel = $("statusLabel");
+const btnAbrir = $("btnAbrir");
+const btnFechar = $("btnFechar");
+const contadorAtual = $("contadorAtual");
+const btnReiniciarContador = $("btnReiniciarContador");
 
 let slotsBuilt = false;
 
@@ -348,7 +355,87 @@ loginForm.addEventListener("submit", async (e) => {
     }
 });
 
-logoutBtn.addEventListener("click", () => signOut(auth));
+logoutBtn.addEventListener("click", () => signOut(auth)); 
+
+// ---------------------------------------------------------------
+// Status da loja (aberta/fechada)
+// ---------------------------------------------------------------
+function atualizarUIStatus(aberta) {
+    if (!statusIcone) return;
+
+    if (aberta) {
+        statusIcone.textContent = "🟢";
+        statusLabel.textContent = "Loja Aberta";
+        statusLabel.style.color = "#25d366";
+        btnAbrir.disabled = true;
+        btnFechar.disabled = false;
+    } else {
+        statusIcone.textContent = "🔴";
+        statusLabel.textContent = "Loja Fechada";
+        statusLabel.style.color = "#e63946";
+        btnAbrir.disabled = false;
+        btnFechar.disabled = true;
+    }
+}
+
+async function setStatusLoja(aberta) {
+    try {
+        await set(ref(db, "status/lojaAberta"), aberta);
+    } catch (err) {
+        console.error("Erro ao salvar status:", err);
+        alert("Erro ao salvar status. Verifique as regras do Firebase.");
+    }
+}
+
+if (btnAbrir) btnAbrir.addEventListener("click", () => setStatusLoja(true));
+if (btnFechar) btnFechar.addEventListener("click", () => setStatusLoja(false));
+
+onValue(ref(db, "status/lojaAberta"), (snap) => {
+    const aberta = snap.exists() ? snap.val() : false;
+    atualizarUIStatus(aberta);
+});
+
+// ---------------------------------------------------------------
+// Contador regressivo
+// ---------------------------------------------------------------
+function formatarContador(endTime) {
+    const diff = endTime - new Date();
+    if (diff <= 0) return "⏰ Encerrado";
+    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const s = Math.floor((diff % (1000 * 60)) / 1000);
+    return `${d}d ${h.toString().padStart(2,"0")}:${m.toString().padStart(2,"0")}:${s.toString().padStart(2,"0")}`;
+}
+
+if (btnReiniciarContador) {
+    btnReiniciarContador.addEventListener("click", async () => {
+        if (!confirm("Reiniciar o contador para 7 dias a partir de agora?")) return;
+        try {
+            const novaData = new Date();
+            novaData.setDate(novaData.getDate() + 7);
+            await set(ref(db, "contador/dataFinal"), novaData.toISOString());
+            alert("✔ Contador reiniciado! O site já está mostrando a nova contagem.");
+        } catch (err) {
+            console.error(err);
+            alert("Erro ao reiniciar contador. Verifique as regras do Firebase.");
+        }
+    });
+}
+
+onValue(ref(db, "contador/dataFinal"), (snap) => {
+    if (!contadorAtual) return;
+    if (snap.exists()) {
+        const endTime = new Date(snap.val());
+        contadorAtual.textContent = formatarContador(endTime);
+        if (window._adminContadorInt) clearInterval(window._adminContadorInt);
+        window._adminContadorInt = setInterval(() => {
+            contadorAtual.textContent = formatarContador(endTime);
+        }, 1000);
+    } else {
+        contadorAtual.textContent = "Não configurado";
+    }
+});
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
