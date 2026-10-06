@@ -471,12 +471,19 @@
     </header>
 
     <!-- Início -->
-    <section id="inicio">
-        <h2>Bem-vindo à nossa loja!</h2>
-        <p>As melhores peças para o seu carro, com atendimento de excelência.</p>
-        <!-- Camaro amarelo fixado (simulação) -->
-        <img src="img/logocar.jpg" alt="Logo da loja" style="max-width: 400px; width: 100%; height: auto; display: block; margin: 30px auto 0; border-radius: 20px; box-shadow: var(--shadow);">
-    </section>
+<section id="inicio">
+    <h2>Bem-vindo à nossa loja!</h2>
+    <p>As melhores peças para o seu carro, com atendimento de excelência.</p>
+    
+    <!-- Selo de status da loja -->
+    <div id="statusLoja" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 30px; font-weight: bold; margin: 20px auto; background: #ccc; color: #fff; transition: background 0.3s;">
+        <span id="statusIcone">⏳</span>
+        <span id="statusTexto">Carregando...</span>
+    </div>
+    
+    <!-- Camaro amarelo fixado (simulação) -->
+    <img src="img/logocar.jpg" alt="Logo da loja" style="max-width: 400px; width: 100%; height: auto; display: block; margin: 30px auto 0; border-radius: 20px; box-shadow: var(--shadow);">
+</section>
 
     <!-- Ofertas -->
     <section id="ofertas">
@@ -628,30 +635,6 @@ Foi desse aprendizado e da vontade de oferecer um atendimento mais próximo e ho
             themeToggle.checked = true;
         }
 
-        // Contador regressivo (1 semana a partir de agora)
-        function startTimer() {
-            let endTime = new Date();
-            endTime.setDate(endTime.getDate() + 7); // 7 dias
-            const timer = document.getElementById('timer');
-
-            function update() {
-                const now = new Date();
-                const diff = endTime - now;
-                if (diff <= 0) {
-                    timer.textContent = "00:00:00";
-                    clearInterval(interval);
-                    return;
-                }
-                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-                timer.textContent = `${days}d ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            }
-            update();
-            const interval = setInterval(update, 1000);
-        }
-        startTimer();
 
         // Carrossel automático
         // (os slides são criados dinamicamente, então a contagem é feita a cada ciclo)
@@ -706,7 +689,7 @@ Foi desse aprendizado e da vontade de oferecer um atendimento mais próximo e ho
     <!-- Ofertas dinâmicas (Firebase Realtime Database) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-        import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
+        import { getDatabase, ref, get, set, onValue } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBR-9CtLbm0T-yJor-lQD_dzvp5M2hmAAA",
@@ -720,6 +703,14 @@ Foi desse aprendizado e da vontade de oferecer um atendimento mais próximo e ho
             measurementId: "G-CNYJDMX15P"
         };
 
+        // Helper para inicializar o Firebase apenas uma vez
+let appFirebase = null;
+function getApp() {
+    if (!appFirebase) {
+        appFirebase = initializeApp(firebaseConfig);
+    }
+    return appFirebase;
+}
         // Fallback estático (usado se o Firebase estiver vazio ou indisponível)
         const OFERTAS_FALLBACK = [
             { titulo: "Reservatório de Água Marvini M738", precoOriginal: 61, precoDesconto: 55, desconto: 10, whatsapp: "https://wa.me/5511947616214?text=Quero%20o%20Reservat%C3%B3rio%20Marvini", imagem: "img/reservatorio.jpg" },
@@ -783,25 +774,109 @@ Foi desse aprendizado e da vontade de oferecer um atendimento mais próximo e ho
             slidesEl.style.transform = "translateX(0)";
         }
 
-        async function carregar() {
-            try {
-                const app = initializeApp(firebaseConfig);
-                const db = getDatabase(app);
-                const snap = await get(ref(db, "ofertas"));
-                if (!snap.exists()) throw new Error("sem dados");
 
-                const lista = Object.entries(snap.val())
-                    .filter(([, v]) => v && v.titulo)
-                    .sort((a, b) => Number(a[0]) - Number(b[0]))
-                    .map(([, v]) => v);
+async function carregar() {
+    try {
+        const app = getApp();
+        const db = getDatabase(app);
+        const snap = await get(ref(db, "ofertas"));
+        if (!snap.exists()) throw new Error("sem dados");
 
-                if (lista.length === 0) throw new Error("lista vazia");
-                renderizar(lista);
-            } catch (err) {
-                console.warn("Usando ofertas estáticas:", err.message || err);
-                renderizar(OFERTAS_FALLBACK);
-            }
+        const lista = Object.entries(snap.val())
+            .filter(([, v]) => v && v.titulo)
+            .sort((a, b) => Number(a[0]) - Number(b[0]))
+            .map(([, v]) => v);
+
+        if (lista.length === 0) throw new Error("lista vazia");
+        renderizar(lista);
+    } catch (err) {
+        console.warn("Usando ofertas estáticas:", err.message || err);
+        renderizar(OFERTAS_FALLBACK);
+    }
+}
+// --- STATUS DA LOJA (aberta/fechada) em tempo real ---
+function atualizarStatus(aberta) {
+    const el = document.getElementById("statusLoja");
+    const icone = document.getElementById("statusIcone");
+    const texto = document.getElementById("statusTexto");
+    if (!el) return;
+    
+    if (aberta) {
+        el.style.background = "#25d366";
+        icone.textContent = "🟢";
+        texto.textContent = "Loja Aberta";
+    } else {
+        el.style.background = "#e63946";
+        icone.textContent = "🔴";
+        texto.textContent = "Loja Fechada";
+    }
+}
+
+async function carregarStatus() {
+    try {
+        // Reutiliza o app já inicializado (se existir) ou inicializa
+        const app = getApp();
+        const db = getDatabase(app);
+        const statusRef = ref(db, "status/lojaAberta");
+        onValue(statusRef, (snap) => {
+            const aberta = snap.exists() ? snap.val() : false;
+            atualizarStatus(aberta);
+        });
+    } catch (err) {
+        console.warn("Erro ao carregar status:", err);
+        atualizarStatus(false);
+    }
+}
+
+carregarStatus();
+
+// --- CONTADOR (data final salva no Firebase) ---
+function iniciarContador(endTime) {
+    const timer = document.getElementById('timer');
+    if (!timer) return;
+    if (window._timerInterval) clearInterval(window._timerInterval);
+
+    function update() {
+        const now = new Date();
+        const diff = endTime - now;
+        if (diff <= 0) {
+            timer.textContent = "Ofertas encerradas";
+            clearInterval(window._timerInterval);
+            return;
         }
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        timer.textContent = `${days}d ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    update();
+    window._timerInterval = setInterval(update, 1000);
+}
+
+async function carregarContador() {
+    try {
+        const app = getApp();
+        const db = getDatabase(app);
+        const snap = await get(ref(db, "contador/dataFinal"));
+
+        if (snap.exists()) {
+            iniciarContador(new Date(snap.val()));
+        } else {
+            const dataFinal = new Date();
+            dataFinal.setDate(dataFinal.getDate() + 7);
+            await set(ref(db, "contador/dataFinal"), dataFinal.toISOString());
+            iniciarContador(dataFinal);
+        }
+    } catch (err) {
+        console.warn("Erro no contador:", err);
+        const dataFinal = new Date();
+        dataFinal.setDate(dataFinal.getDate() + 7);
+        iniciarContador(dataFinal);
+    }
+}
+
+carregarContador();
 
         carregar();
     </script>
