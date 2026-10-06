@@ -40,6 +40,33 @@
         </header>
 
         <main class="panel">
+
+            <!-- ========== STATUS DA LOJA ========== -->
+    <section class="status-card">
+        <h2>Status da Loja</h2>
+        <p class="status-desc">Controle se a loja aparece como aberta ou fechada no site.</p>
+        <div class="status-display">
+            <span id="statusIcone">⏳</span>
+            <span id="statusLabel">Carregando...</span>
+        </div>
+        <div class="status-actions">
+            <button type="button" id="btnAbrir" class="btn btn-abrir">🟢 Abrir Loja</button>
+            <button type="button" id="btnFechar" class="btn btn-fechar">🔴 Fechar Loja</button>
+        </div>
+    </section> 
+    
+        <!-- ========== CONTADOR ========== -->
+    <section class="status-card">
+        <h2>Contador de Ofertas</h2>
+        <p class="status-desc">Quando o contador chegar a zero, clique no botão para começar uma nova semana de 7 dias.</p>
+        <div class="status-display">
+            <span id="contadorAtual">Carregando...</span>
+        </div>
+        <div class="status-actions">
+            <button type="button" id="btnReiniciarContador" class="btn btn-abrir">🔄 Reiniciar Contador (7 dias)</button>
+        </div>
+    </section>
+    
             <p class="intro">Edite as 5 ofertas da semana. As mudanças aparecem no site assim que você clicar em <strong>Salvar</strong>.</p>
 
             <form id="ofertasForm" novalidate>
